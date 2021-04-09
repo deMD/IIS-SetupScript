@@ -68,7 +68,18 @@ If ((Get-Content "$($env:windir)\system32\Drivers\etc\hosts" ) -notcontains "127
 Write-Host "Import databse"
 $RootDir = (Get-Item $PSScriptRoot).parent.parent.parent.FullName
 $BackupDirectory = "$RootDir\bak"
-$bacpacFile = Get-ChildItem -Path $BackupDirectory\*.bacpac | Sort-Object LastAccessTime -Descending | Select-Object -First 1
+$files = Get-ChildItem -Path $BackupDirectory\*.bacpac | Sort-Object LastAccessTime -Descending | Select-Object
+$i = 0
+Write-Host "Select database to import"
+foreach ($f in $files) {
+    $i++
+    Write-Host "$i` : $f"
+}
+do {
+    $SelectedIndex = (Read-Host -Prompt "Pick a number").ToInt32($null)
+}
+while ($SelectedIndex -notin (1..$i))
+$bacpacFile = $files[$SelectedIndex - 1]
 $file = "$bacpacFile";
 
 $DropDatabaseQuery = 
@@ -117,8 +128,17 @@ Set-Acl -Path $PSScriptRoot -AclObject $ACL
 ####################### IMPORT MEDIA #################################
 ######################################################################
 
+$CustomMediaName = Read-Host -Prompt "Use default media folder? [y/n]"
+
+if ($CustomMediaName -eq "n") {
+    $TargetMediaName = Read-Host -Prompt "Input media folder name"
+}
+else {
+    $TargetMediaName = "media"
+}
+
 $Context = New-AzStorageContext -Local
 $Now = Get-Date
-$StorageAccountUri = New-AzStorageContainerSASToken -Name media -Permission rwdl -ExpiryTime $Now.AddDays(1.0) -Context $Context -FullUri
+$StorageAccountUri = New-AzStorageContainerSASToken -Name $TargetMediaName -Permission rwdl -ExpiryTime $Now.AddDays(1.0) -Context $Context -FullUri
 $MediaDirectory = "$RootDir/media/*"
 AzCopy copy "$MediaDirectory" "$StorageAccountUri" --overwrite=prompt --from-to=LocalBlob  --recursive
